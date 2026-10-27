@@ -1,0 +1,399 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Result Dashboard</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 25px;
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+}
+.container {
+  max-width: 1000px;
+  margin: auto;
+}
+header {
+  background: #172554;
+  color: white;
+  padding: 25px;
+  border-radius: 12px;
+}
+header p { color: #bfdbfe; }
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+}
+.stat {
+  background: #263968;
+  padding: 15px;
+  border-radius: 8px;
+}
+.stat h2 { margin-bottom: 0; }
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 25px 0 15px;
+}
+input, button {
+  padding: 11px;
+  border-radius: 6px;
+  font-size: 15px;
+}
+input {
+  border: 1px solid #cbd5e1;
+  width: 100%;
+  margin: 5px 0 12px;
+}
+button {
+  border: none;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+button:hover { background: #1d4ed8; }
+.search { margin-bottom: 12px; }
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+.filters button { background: #64748b; }
+.filters button.active { background: #2563eb; }
+.card {
+  background: white;
+  border-radius: 10px;
+  padding: 18px;
+  margin: 12px 0;
+  box-shadow: 0 2px 6px #0000000d;
+}
+.student-top, .student-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.student-top h3 { margin-bottom: 5px; }
+.muted { color: #64748b; font-size: 14px; }
+.grade { font-weight: bold; color: #2563eb; }
+.pass { color: #15803d; }
+.fail { color: #dc2626; }
+.details {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 15px;
+  padding-top: 10px;
+}
+.subject {
+  display: grid;
+  grid-template-columns: 100px 1fr 60px;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0;
+}
+.track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.bar { height: 100%; }
+form {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.hidden { display: none; }
+#message { color: #dc2626; }
+@media(max-width:600px) {
+  body { padding: 12px; }
+  .stats { gap: 6px; }
+  .stat { padding: 10px; }
+  .toolbar { align-items: stretch; }
+  .student-top { align-items: flex-start; }
+  .subject { grid-template-columns: 75px 1fr 45px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <h1>Student Result Dashboard</h1>
+  <p>Manage student records and academic performance</p>
+  <div class="stats">
+    <div class="stat">Students<h2 id="count">0</h2></div>
+    <div class="stat">Passed<h2 id="passed">0</h2></div>
+    <div class="stat">Failed<h2 id="failed">0</h2></div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <h2>Student Records</h2>
+  <button id="toggleForm">+ Add Student</button>
+</div>
+
+<form id="studentForm" class="hidden">
+  <h3>Add New Student</h3>
+  <label>Student Name</label>
+  <input id="name" placeholder="Enter student name" required>
+  <label>Roll Number</label>
+  <input id="roll" placeholder="Enter unique roll number" required>
+  <div class="form-grid" id="markInputs"></div>
+  <button type="submit">Save Student</button>
+  <p id="message" role="alert"></p>
+</form>
+
+<input id="search" class="search"
+       placeholder="Search by name or roll number...">
+
+<div class="filters">
+  <button class="active" data-filter="All">All</button>
+  <button data-filter="Pass">Passed</button>
+  <button data-filter="Fail">Failed</button>
+</div>
+
+<div id="studentList"></div>
+</div>
+
+<script>
+// Student objects stored in an array
+let students = [
+  {name:"Arun Kumar", roll:"101", marks:[85,90,78,88,92]},
+  {name:"Priya Sharma", roll:"102", marks:[92,95,89,94,91]},
+  {name:"Rahul Kumar", roll:"103", marks:[55,62,48,70,60]},
+  {name:"Sneha Patel", roll:"104", marks:[35,42,38,45,40]}
+];
+
+let activeFilter = "All";
+
+// Create the five subject inputs dynamically
+for (let i = 0; i < 5; i++) {
+  const label = document.createElement("label");
+  label.textContent = `Subject ${i + 1} Marks`;
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = 0;
+  input.max = 100;
+  input.step = "any";
+  input.required = true;
+  input.id = `mark${i}`;
+
+  document.getElementById("markInputs")
+    .append(label, input);
+}
+
+function total(s) {
+  return s.marks.reduce((sum, mark) => sum + mark, 0);
+}
+
+function average(s) {
+  return total(s) / s.marks.length;
+}
+
+function grade(s) {
+  const a = average(s);
+  if (a >= 90) return "A+";
+  if (a >= 80) return "A";
+  if (a >= 70) return "B";
+  if (a >= 60) return "C";
+  if (a >= 50) return "D";
+  return "F";
+}
+
+function render() {
+  const query = document.getElementById("search")
+    .value.trim().toLowerCase();
+
+  const filtered = students.filter(s => {
+    const matches =
+      s.name.toLowerCase().includes(query) ||
+      s.roll.toLowerCase().includes(query);
+
+    const status = average(s) >= 50 ? "Pass" : "Fail";
+    return matches &&
+      (activeFilter === "All" || status === activeFilter);
+  });
+
+  document.getElementById("count").textContent =
+    students.length;
+  document.getElementById("passed").textContent =
+    students.filter(s => average(s) >= 50).length;
+  document.getElementById("failed").textContent =
+    students.filter(s => average(s) < 50).length;
+
+  const list = document.getElementById("studentList");
+  list.replaceChildren();
+
+  if (filtered.length === 0) {
+    list.textContent = "No matching student records found.";
+    return;
+  }
+
+  filtered.forEach(s => {
+    const card = document.createElement("article");
+    card.className = "card";
+
+    const top = document.createElement("div");
+    top.className = "student-top";
+
+    const info = document.createElement("div");
+    const heading = document.createElement("h3");
+    heading.textContent = s.name;
+
+    const roll = document.createElement("p");
+    roll.className = "muted";
+    roll.textContent = "Roll No: " + s.roll;
+
+    info.append(heading, roll);
+
+    const summary = document.createElement("div");
+    summary.style.textAlign = "right";
+
+    const percent = document.createElement("strong");
+    percent.textContent = average(s).toFixed(2) + "%";
+    percent.className = "grade";
+
+    const status = document.createElement("p");
+    status.textContent = average(s) >= 50 ? "Pass" : "Fail";
+    status.className =
+      average(s) >= 50 ? "pass" : "fail";
+
+    summary.append(percent, status);
+    top.append(info, summary);
+
+    const bottom = document.createElement("div");
+    bottom.className = "student-bottom";
+
+    const totalText = document.createElement("span");
+    totalText.textContent =
+      `Total: ${total(s)}/500 | Grade: ${grade(s)}`;
+
+    const view = document.createElement("button");
+    view.textContent = "View Details";
+
+    const details = document.createElement("div");
+    details.className = "details hidden";
+
+    const title = document.createElement("h4");
+    title.textContent = "Subject-wise Marks";
+    details.append(title);
+
+    s.marks.forEach((mark, i) => {
+      const row = document.createElement("div");
+      row.className = "subject";
+
+      const subjectName = document.createElement("span");
+      subjectName.textContent = `Subject ${i + 1}`;
+
+      const track = document.createElement("div");
+      track.className = "track";
+
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      bar.style.width = mark + "%";
+      bar.style.background =
+        mark >= 50 ? "#16a34a" : "#dc2626";
+      track.append(bar);
+
+      const value = document.createElement("span");
+      value.textContent = mark + "/100";
+
+      row.append(subjectName, track, value);
+      details.append(row);
+    });
+
+    view.addEventListener("click", () => {
+      details.classList.toggle("hidden");
+      view.textContent = details.classList.contains("hidden")
+        ? "View Details" : "Hide Details";
+    });
+
+    bottom.append(totalText, view);
+    card.append(top, bottom, details);
+    list.append(card);
+  });
+}
+
+document.getElementById("search")
+  .addEventListener("input", render);
+
+document.querySelectorAll("[data-filter]")
+  .forEach(button => {
+    button.addEventListener("click", () => {
+      activeFilter = button.dataset.filter;
+
+      document.querySelectorAll("[data-filter]")
+        .forEach(b => b.classList.toggle("active", b === button));
+
+      render();
+    });
+  });
+
+document.getElementById("toggleForm")
+  .addEventListener("click", () => {
+    document.getElementById("studentForm")
+      .classList.toggle("hidden");
+  });
+
+document.getElementById("studentForm")
+  .addEventListener("submit", event => {
+    event.preventDefault();
+
+    const name = document.getElementById("name")
+      .value.trim();
+    const roll = document.getElementById("roll")
+      .value.trim();
+
+    const marks = Array.from({length: 5}, (_, i) =>
+      document.getElementById(`mark${i}`).valueAsNumber
+    );
+
+    const message = document.getElementById("message");
+
+    if (!name || !roll ||
+        marks.some(m => !Number.isFinite(m) || m < 0 || m > 100)) {
+      message.textContent =
+        "Enter a name, roll number, and valid marks from 0 to 100.";
+      return;
+    }
+
+    if (students.some(s =>
+      s.roll.toLowerCase() === roll.toLowerCase())) {
+      message.textContent = "Roll number already exists.";
+      return;
+    }
+
+    students.push({name, roll, marks});
+    event.target.reset();
+    message.textContent = "";
+    event.target.classList.add("hidden");
+    document.getElementById("search").value = "";
+    activeFilter = "All";
+
+    document.querySelectorAll("[data-filter]")
+      .forEach(b => b.classList.toggle(
+        "active", b.dataset.filter === "All"
+      ));
+
+    render();
+  });
+
+render();
+</script>
+</body>
+</html>
